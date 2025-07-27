@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .connecting { background-color: #fff3cd; color: #856404; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        input[type="text"] {
+            width: 300px;
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>WebSocket Connection Test</h1>
+        
+        <div>
+            <label>WebSocket URL:</label>
+            <input type="text" id="ws-url" value="ws://localhost:8765" />
+            <button class="btn-primary" onclick="connect()">Connect</button>
+            <button class="btn-secondary" onclick="disconnect()">Disconnect</button>
+            <button class="btn-success" onclick="sendTestMessage()">Send Test</button>
+        </div>
+
+        <div id="connection-status" class="status disconnected">
+            Disconnected
+        </div>
+
+        <div>
+            <h3>Connection Info:</h3>
+            <div id="connection-details">
+                <p>Ready State: <span id="ready-state">CLOSED</span></p>
+                <p>Reconnect Attempts: <span id="reconnect-attempts">0</span></p>
+                <p>URL: <span id="current-url">-</span></p>
+            </div>
+        </div>
+
+        <div>
+            <h3>Event Log:</h3>
+            <div id="event-log" class="log"></div>
+            <button class="btn-secondary" onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script src="src/services/websocket.js"></script>
+    <script>
+        const statusEl = document.getElementById('connection-status');
+        const logEl = document.getElementById('event-log');
+        const readyStateEl = document.getElementById('ready-state');
+        const reconnectAttemptsEl = document.getElementById('reconnect-attempts');
+        const currentUrlEl = document.getElementById('current-url');
+
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `[${timestamp}] ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateStatus(status, className) {
+            statusEl.textContent = status;
+            statusEl.className = `status ${className}`;
+        }
+
+        function updateConnectionInfo() {
+            const info = window.wsService.getConnectionInfo();
+            readyStateEl.textContent = info.readyState.toUpperCase();
+            reconnectAttemptsEl.textContent = info.reconnectAttempts;
+            currentUrlEl.textContent = info.url || '-';
+        }
+
+        function connect() {
+            const url = document.getElementById('ws-url').value;
+            addLog(`Attempting to connect to: ${url}`);
+            
+            window.wsService.connect(url);
+        }
+
+        function disconnect() {
+            addLog('Disconnecting...');
+            window.wsService.disconnect();
+        }
+
+        function sendTestMessage() {
+            if (window.wsService.isConnected()) {
+                const message = {
+                    type: 'test',
+                    data: { message: 'Hello from test client', timestamp: Date.now() }
+                };
+                window.wsService.send(message);
+                addLog('Sent test message');
+            } else {
+                addLog('Cannot send - not connected');
+            }
+        }
+
+        function clearLog() {
+            logEl.innerHTML = '';
+        }
+
+        // Set up event listeners
+        window.wsService.on('connected', () => {
+            updateStatus('Connected', 'connected');
+            addLog('WebSocket connected successfully');
+            updateConnectionInfo();
+        });
+
+        window.wsService.on('disconnected', (event) => {
+            updateStatus('Disconnected', 'disconnected');
+            addLog(`Disconnected: ${event.code} - ${event.reason}`);
+            updateConnectionInfo();
+        });
+
+        window.wsService.on('error', (error) => {
+            updateStatus('Error', 'error');
+            addLog(`Error: ${error.message || error}`);
+            updateConnectionInfo();
+        });
+
+        window.wsService.on('signal', (data) => {
+            addLog(`Received signal: ${JSON.stringify(data)}`);
+        });
+
+        // Update connection info periodically
+        setInterval(updateConnectionInfo, 1000);
+
+        // Initial setup
+        addLog('WebSocket test initialized');
+    </script>
+</body>
+</html>
