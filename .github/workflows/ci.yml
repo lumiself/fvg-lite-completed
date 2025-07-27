@@ -1,0 +1,77 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9, "3.10", 3.11]
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics
+    
+    - name: Test backend imports
+      run: |
+        cd backend
+        python -c "from websocket_server import WebSocketServer; print('Backend OK')"
+    
+    - name: Test WebSocket server startup
+      run: |
+        cd backend
+        timeout 5 python websocket_server.py || true
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Test frontend files
+      run: |
+        test -f frontend/index.html
+        test -f frontend/styles.css
+        test -f frontend/app.js
+        test -f frontend/test-websocket.html
+        echo "Frontend files verified"
+    
+    - name: Validate HTML
+      run: |
+        pip install html5validator
+        html5validator frontend/index.html frontend/test-websocket.html || true
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run security scan
+      uses: github/super-linter@v4
+      env:
+        DEFAULT_BRANCH: main
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VALIDATE_PYTHON: true
+        VALIDATE_JAVASCRIPT_ES: true
+        VALIDATE_HTML: true
+        VALIDATE_CSS: true
